@@ -1,11 +1,12 @@
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
-from random import randint
+from random import choice, choices
 
 """ This file tries a first approach to solve our problem
 by using a Tfid Vectorizer and the Nearest Neighbors learning method."""
-from context_class import corpus, paragraph, data
+
+from context_class import corpus, data
 
 # Defining the tf idf configurations
 tfidf_configs = {
@@ -21,61 +22,82 @@ tfidf_configs = {
 retriever_configs = {"n_neighbors": 3, "metric": "cosine"}
 
 
-def info_retrieval_nn(docs, text_title, text_content, question):
+def doc_retrieval_nn(docs, question):
     # Defining our pipeline
     embedding = TfidfVectorizer(**tfidf_configs)
     retriever = NearestNeighbors(**retriever_configs)
 
     # Fitting our data on the target and identifier values.
-    X = embedding.fit_transform(docs[text_content])
-    retriever.fit(X, docs[text_title])
+    X = embedding.fit_transform(docs["context"])
+    retriever.fit(X, docs["title"])
 
     # predict the most similar document
     X = embedding.transform([question])
-    pred = []
-    titles = []
-    for i in range(3):
-        title = retriever.kneighbors(X, return_distance=False)[0][i]
-        titles.append(title)
-        pred.append(docs.iloc[title]["context"])
-    return titles, pred
+    index = retriever.kneighbors(X, return_distance=False)[0][0]
+    pred = docs.iloc[index]["context"]
+    title = docs.iloc[index]["title"]
+    return title, pred
 
 
-def perf_metrics(data, pred_titles, question):
-    # posi = lensemble des textes qui ont la question dans leur donnée
-    posi = pd.DataFrame()
-    """for i in range(len(data['qas'])):
-        print(data.loc[i,"qas"])
-        posi.append(data.loc[
-        data.loc[i,"qas"]["question"] == question])"""
-    # ce qu'on veut faire : retrouver le bon paragraphe et pas premier paragrpahe du bon texte.
-    # ensuite, recréer objet paragraphe, call ses questions. tadam.
-    # for title in pred_titles :
-    # text =
-    # context =
-    # qas =
-    # para = paragraph({'context':context, 'qas', qas})
-    # tp = len(intersection 'test' et pred)
-    # fp = ceux dans pred et pas dans 'test'
-    # on va étudier la précision, pour estimer le nombre de vrai relevants dans les réponses.
+def perf(data, question, pred_context=None, pred_title=None):
+    # Defining if the predicted context or predicted text title answers the given question.
+    if pred_context:
+        temp = data.loc[data["context"] == pred_context]
+    if pred_title:
+        temp = data.loc[data["title"] == pred_title]
+    posi = temp.loc[temp["question"] == question]
     tp = posi.shape[0]
-    fp = 1
-    prec = tp / (tp + fp)
-    return prec
+    return tp > 0
+
+
+def precision(data, t=False, c=False):
+    # Computing the precision, equal to true positives over all positives,
+    # to see how many useless documents we're returning.
+    T, F = 0, 0
+    documents = data[["context", "title"]].drop_duplicates().reset_index(drop=True)
+    # Create a unique list of questions, and pick 100 at random.
+    questions = list(data["question"].unique())
+    questions = choices(questions, k=100)
+    for q in questions:
+        # find the best prediction for this question, and add to T or F if it's a match.
+        title, pred = doc_retrieval_nn(documents, q)
+        if t:
+            if perf(data, q, pred_title=title):
+                T += 1
+            else:
+                F += 1
+        elif c:
+            if perf(data, q, pred_context=pred):
+                T += 1
+            else:
+                F += 1
+    pred = T / (T + F)
+    return pred
 
 
 if __name__ == "__main__":
-    test = corpus(data)
-    df = test.create_dataframe()
+
+    # Transform our data into a corpus object.
+    corp = corpus(data)
+    # Apply the create_dataframe method.
+    df = corp.create_dataframe()
 
     documents = df[["context", "title"]].drop_duplicates().reset_index(drop=True)
 
-    n = randint(0, len(test.list_texts))
-    m = randint(0, len(test.list_texts[n].list_paragraphs))
-    p = randint(0, len(test.list_texts[n].list_paragraphs[m].questions))
-    text = test.list_texts[n].list_paragraphs[m].questions[p]
-    print(text)
+    # Select a random question.
+    trial_text = choice(corp.list_texts)
+    trial_paragraph = choice(trial_text.list_paragraphs)
+    trial_question = choice(trial_paragraph.questions)
+    print(trial_question)
 
-    titles, pred = info_retrieval_nn(documents, "title", "context", text)
-    print(pred[0])
-    print(perf_metrics(df, pred, text))
+    # Retrieve the 'closest' document based on our NN method.
+    title, pred = doc_retrieval_nn(documents, trial_question)
+    print(title)
+    print(pred)
+    # Print a boolean to indicate if it's a match.
+    print(perf(df, trial_question, pred_context=pred))
+
+    # print(precision(df, c=True))
+    # On a run of 100 questions, the precision based on context is 0.47.
+    # print(precision(df, t=True))
+    # On a run of 100 questions, the precision based on title is 0.5.

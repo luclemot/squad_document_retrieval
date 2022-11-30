@@ -25,8 +25,12 @@ class corpus:
         """This function creates a pandas dataframe for our corpus, representing
         each qas with the according context, text title."""
         df = pd.json_normalize(
-            data["data"], record_path=["paragraphs"], meta=["title"], errors="ignore"
+            data["data"],
+            record_path = ["paragraphs", "qas"],
+            meta = ['title', ["paragraphs",'context']],
+            errors = "ignore"
         )
+        df.rename(columns = {"paragraphs.context" : "context"}, inplace=True)
         return df
 
 
@@ -45,7 +49,6 @@ class text:
 
 class paragraph:
     def __init__(self, source):
-        self.source = source
         self.context = source["context"]
         self.qas = source["qas"]
         self.questions = []
@@ -60,3 +63,4 @@ class paragraph:
 if __name__ == "__main__":
     test = corpus(data)
     print(test.list_texts[0].list_paragraphs[0].questions)
+    print(test.create_dataframe().columns)
