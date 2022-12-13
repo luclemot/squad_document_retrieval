@@ -22,9 +22,8 @@ def corpus_vis(temp):
     plt.plot()
     df.groupby(["question"]).count()["context"].value_counts().plot(kind="bar")
     plt.show()
-    
-    print(max(df["question"].value_counts()))
 
+    print(max(df["question"].value_counts()))
 
 
 if __name__ == "__main__":

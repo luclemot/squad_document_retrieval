@@ -1,4 +1,4 @@
-from NN import doc_retrieval_nn
+from NN import doc_retrieval_nn, embedding, retriever
 from context_class import corpus
 from random import choice
 import json
@@ -15,8 +15,11 @@ if __name__ == "__main__":
 
     documents = df[["context", "title"]].drop_duplicates().reset_index(drop=True)
 
+    X = embedding.fit_transform(documents["context"])
+    retriever.fit(X, documents["title"])
+
     message = input("Enter a question or type random : ")
-    if message == "random" :
+    if message == "random":
         # Select a random question.
         trial_text = choice(corp.list_texts)
         trial_paragraph = choice(trial_text.list_paragraphs)
@@ -26,6 +29,6 @@ if __name__ == "__main__":
     print(trial_question)
 
     # Retrieve the 'closest' document based on our NN method.
-    title, pred = doc_retrieval_nn(documents, trial_question)
+    title, pred = doc_retrieval_nn(documents, trial_question, retriever)
     print(title)
     print(pred)

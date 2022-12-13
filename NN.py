@@ -21,15 +21,12 @@ tfidf_configs = {
 # Defining the number of documents to retrieve
 retriever_configs = {"n_neighbors": 3, "metric": "cosine"}
 
+# Defining our pipeline
+embedding = TfidfVectorizer(**tfidf_configs)
+retriever = NearestNeighbors(**retriever_configs)
 
-def doc_retrieval_nn(docs, question):
-    # Defining our pipeline
-    embedding = TfidfVectorizer(**tfidf_configs)
-    retriever = NearestNeighbors(**retriever_configs)
 
-    # Fitting our data on the target and identifier values.
-    X = embedding.fit_transform(docs["context"])
-    retriever.fit(X, docs["title"])
+def doc_retrieval_nn(docs, question, retriever):
 
     # predict the most similar document
     X = embedding.transform([question])
@@ -50,7 +47,7 @@ def perf(data, question, pred_context=None, pred_title=None):
     return tp > 0
 
 
-def precision(data, t=False, c=False):
+def precision(data, retriever, t=False, c=False):
     # Computing the precision, equal to true positives over all positives,
     # to see how many useless documents we're returning.
     T, F = 0, 0
@@ -60,7 +57,7 @@ def precision(data, t=False, c=False):
     questions = choices(questions, k=100)
     for q in questions:
         # find the best prediction for this question, and add to T or F if it's a match.
-        title, pred = doc_retrieval_nn(documents, q)
+        title, pred = doc_retrieval_nn(documents, q, retriever)
         if t:
             if perf(data, q, pred_title=title):
                 T += 1
@@ -84,6 +81,9 @@ if __name__ == "__main__":
 
     documents = df[["context", "title"]].drop_duplicates().reset_index(drop=True)
 
+    X = embedding.fit_transform(documents["context"])
+    retriever.fit(X, documents["title"])
+
     # Select a random question.
     trial_text = choice(corp.list_texts)
     trial_paragraph = choice(trial_text.list_paragraphs)
@@ -91,13 +91,13 @@ if __name__ == "__main__":
     print(trial_question)
 
     # Retrieve the 'closest' document based on our NN method.
-    title, pred = doc_retrieval_nn(documents, trial_question)
+    title, pred = doc_retrieval_nn(documents, trial_question, retriever)
     print(title)
     print(pred)
     # Print a boolean to indicate if it's a match.
     print(perf(df, trial_question, pred_context=pred))
 
-    # print(precision(df, c=True))
+    print(precision(df, retriever, c=True))
     # On a run of 100 questions, the precision based on context is 0.47.
-    # print(precision(df, t=True))
+    print(precision(df, retriever, t=True))
     # On a run of 100 questions, the precision based on title is 0.5.
